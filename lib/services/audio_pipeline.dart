@@ -19,6 +19,7 @@ class AudioPipeline {
   StreamSubscription? _monoSub;
   StreamSubscription? _channelSub;
   StreamSubscription? _classificationSub;
+  StreamSubscription? _bleAudioSub;
   Timer? _demoTimer;
 
   AudioPipeline({required this.appState});
@@ -50,7 +51,11 @@ class AudioPipeline {
     });
   }
 
-  Future<void> connectUdp() async {
+  Future<void> connectAudioStream() async {
+    _monoSub?.cancel();
+    _channelSub?.cancel();
+    _bleAudioSub?.cancel();
+
     _monoSub = _udpReceiver.monoStream.listen(_classifier.processFrame);
     _channelSub = _udpReceiver.channelStream.listen((channels) {
       final result = _doa.estimate(channels, UdpAudioReceiver.sampleRate);
@@ -64,6 +69,11 @@ class AudioPipeline {
         );
       }
     });
+
+    _bleAudioSub = _ble.audioStream.listen((packet) {
+      _udpReceiver.processBlePacket(packet);
+    });
+
     await _udpReceiver.start();
   }
 
@@ -129,6 +139,7 @@ class AudioPipeline {
     _monoSub?.cancel();
     _channelSub?.cancel();
     _classificationSub?.cancel();
+    _bleAudioSub?.cancel();
     _udpReceiver.dispose();
     _ble.dispose();
     _classifier.dispose();

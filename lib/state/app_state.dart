@@ -83,12 +83,13 @@ class AppState extends ChangeNotifier {
   DirectionEvent? _latestDirection;
   SoundEvent? _latestSound;
   final Queue<SoundEvent> _recentEvents = Queue();
+  List<double> _micLevels = [0, 0, 0, 0];
   static const int maxEvents = 20;
 
   // Settings
-  String udpHost = '192.168.4.1'; // ESP32 AP default
+  String udpHost = '192.168.4.1'; // ESP32 Wi-Fi Hotspot default
   int udpPort = 5005;
-  double confidenceThreshold = 0.45;
+  double confidenceThreshold = 0.35;
   bool notificationsEnabled = true;
   bool demoMode = false;
   double micSpacingCm = 5.0;
@@ -103,6 +104,7 @@ class AppState extends ChangeNotifier {
   DirectionEvent? get latestDirection => _latestDirection;
   SoundEvent? get latestSound => _latestSound;
   List<SoundEvent> get recentEvents => _recentEvents.toList().reversed.toList();
+  List<double> get micLevels => _micLevels;
   double get currentLatencyMs => _currentLatencyMs;
 
   void setConnectionStatus(ConnectionStatus status) {
@@ -130,6 +132,12 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  void updateMicLevels(List<double> levels) {
+    _micLevels = levels;
+    // We don't notifyListeners here because trackPacket() already does it at a controlled rate
+    // to prevent UI thrashing.
+  }
+
   void addSoundEvent(SoundEvent event) {
     _latestSound = event;
     _recentEvents.addLast(event);
@@ -142,13 +150,20 @@ class AppState extends ChangeNotifier {
     notifyListeners();
   }
 
+  int packetCount = 0;
+
   void trackPacket() {
+    packetCount++;
     final now = DateTime.now();
     if (_lastPacketTime != null) {
       _currentLatencyMs =
           now.difference(_lastPacketTime!).inMicroseconds / 1000.0;
     }
     _lastPacketTime = now;
+    // Notify UI every ~30 packets to show it's alive without thrashing Reactivity
+    if (packetCount % 30 == 0) {
+      notifyListeners();
+    }
   }
 
   void resetAlertStatus() {

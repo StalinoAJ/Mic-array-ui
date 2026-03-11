@@ -1,0 +1,38 @@
+Launching lib/main.dart on RMP2102 (wireless) in debug mode...
+Running Gradle task 'assembleDebug'...                              7.0s
+✓ Built build/app/outputs/flutter-apk/app-debug.apk
+Installing build/app/outputs/flutter-apk/app-debug.apk...          17.1s
+D/FlutterJNI( 1684): Beginning load of flutter...
+D/FlutterJNI( 1684): flutter (null) was loaded normally!
+I/flutter ( 1684): [IMPORTANT:flutter/shell/platform/android/android_context_gl_impeller.cc(104)] Using the Impeller rendering backend (OpenGLES).
+D/FlutterRenderer( 1684): Width is zero. 0,0
+D/FlutterRenderer( 1684): Width is zero. 0,0
+D/FlutterRenderer( 1684): Width is zero. 0,0
+D/FlutterJNI( 1684): Sending viewport metrics to the engine.
+Syncing files to device RMP2102 (wireless)...                       51ms
+
+Flutter run key commands.
+r Hot reload. 🔥🔥🔥
+R Hot restart.
+h List all available interactive commands.
+d Detach (terminate "flutter run" but leave application running).
+c Clear the screen
+q Quit (terminate the application on the device).
+
+A Dart VM Service on RMP2102 is available at: http://127.0.0.1:33031/rzNbpI5-N7Y=/
+The Flutter DevTools debugger and profiler on RMP2102 is available at: http://127.0.0.1:33031/rzNbpI5-N7Y=/devtools/?uri=ws://127.0.0.1:33031/rzNbpI5-N7Y=/ws
+D/ViewRootImpl( 1684): setSurfaceViewCreated, created:true
+I/tflite  ( 1684): Initialized TensorFlow Lite runtime.
+E/libc    ( 1684): Access denied finding property "ro.hardware.chipname"
+I/Choreographer( 1684): Skipped 97 frames!  The application may be doing too much work on its main thread.
+I/Quality ( 1684): Skipped: false 97
+D/FlutterJNI( 1684): Sending viewport metrics to the engine.
+I/ist.deaf_assis( 1684): ProcessProfilingInfo new_methods=1582 is saved saved_to_disk=1 resolve_classes_delay=5000
+I/Choreographer( 1684): Skipped 171 frames!  The application may be doing too much work on its main thread.
+I/Quality ( 1684): Skipped: false 171
+E/ion     ( 1684): ioctl c0044901 failed with code -1: Invalid argument
+D/ProfileInstaller( 1684): Installing profile for com.deafassist.deaf_assist
+I/ist.deaf_assis( 1684): Thread[2,tid=1695,WaitingInMainSignalCatcherLoop,Thread*=0xb4000070cf75cf50,peer=0x13340410,"Signal Catcher"]: reacting to signal 3
+I/ist.deaf_assis( 1684): 
+I/ist.deaf_assis( 1684): Wrote stack traces to tombstoned
+Lost connection to device.

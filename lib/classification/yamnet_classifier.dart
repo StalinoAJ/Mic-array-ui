@@ -21,6 +21,7 @@ class YamNetClassifier {
 
   // Accumulation buffer for YAMNet's large input window
   final List<double> _accumBuffer = [];
+  int _logCounter = 0;
 
   final StreamController<List<ClassificationResult>> _resultsController =
       StreamController.broadcast();
@@ -158,10 +159,18 @@ class YamNetClassifier {
   void processFrame(Float32List monoFrame) {
     _accumBuffer.addAll(monoFrame);
 
+    // Log buffer progress every 30 frames
+    if (_logCounter++ % 30 == 0) {
+      print(
+          "DEBUG: [Classifier] Buffer filling: ${_accumBuffer.length} / $yamnetInputSize samples");
+    }
+
     while (_accumBuffer.length >= yamnetInputSize) {
       final input = _accumBuffer.sublist(0, yamnetInputSize);
       _accumBuffer.removeRange(0, yamnetInputSize ~/ 2); // 50% hop
 
+      print(
+          "DEBUG: [Classifier] Window full ($yamnetInputSize samples). TRIGGERING INFERENCE...");
       _runInference(input);
     }
   }
@@ -187,8 +196,13 @@ class YamNetClassifier {
       }
 
       results.sort((a, b) => b.confidence.compareTo(a.confidence));
+      final top = results.first;
+      print(
+          "DEBUG: [Classifier] Inference Result: ${top.label} (${(top.confidence * 100).toStringAsFixed(1)}%)");
+
       _resultsController.add(results.take(5).toList());
-    } catch (_) {
+    } catch (e) {
+      print("DEBUG: [Classifier] Inference Error: $e");
       _emitDemoResults();
     }
   }

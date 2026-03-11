@@ -169,6 +169,24 @@ class _DashboardView extends StatelessWidget {
               ],
             ),
             const Spacer(),
+            if (state.connectionStatus == ConnectionStatus.connected &&
+                !state.demoMode)
+              Container(
+                margin: const EdgeInsets.only(right: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: AppColors.cyan.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                  border:
+                      Border.all(color: AppColors.cyan.withValues(alpha: 0.3)),
+                ),
+                child: Text('RX: ${state.packetCount}',
+                    style: const TextStyle(
+                        color: AppColors.cyan,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold)),
+              ),
             // Demo mode FAB
             GestureDetector(
               onTap: () {
@@ -222,9 +240,91 @@ class _DashboardView extends StatelessWidget {
           confidence: dir?.confidence ?? 0.0,
           isActive: state.connectionStatus == ConnectionStatus.connected,
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
+        _buildMicLevelBars(state),
+        const SizedBox(height: 16),
         _buildDirectionStats(state),
       ],
+    );
+  }
+
+  Widget _buildMicLevelBars(AppState state) {
+    bool isConnected = state.connectionStatus == ConnectionStatus.connected;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 40),
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceLight.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: List.generate(4, (i) {
+              double level = isConnected ? state.micLevels[i] : 0.0;
+              // Amplify for better visibility, clamp to 1.0
+              double displayLevel = (level * 5.0).clamp(0.01, 1.0);
+
+              return Column(
+                children: [
+                  Container(
+                    width: 32,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Stack(
+                      alignment: Alignment.bottomCenter,
+                      children: [
+                        AnimatedContainer(
+                          duration: const Duration(milliseconds: 100),
+                          width: double.infinity,
+                          height: displayLevel * 60,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                AppColors.cyan,
+                                AppColors.cyan.withValues(alpha: 0.3),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'M${i + 1}',
+                    style: const TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.textMuted,
+                    ),
+                  ),
+                ],
+              );
+            }),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            isConnected ? 'LIVE 4-CHANNEL STREAM' : 'ARRAY IDLE',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w800,
+              letterSpacing: 1.2,
+              color: isConnected ? AppColors.cyan : AppColors.textMuted,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

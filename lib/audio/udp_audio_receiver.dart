@@ -1,6 +1,6 @@
 import 'dart:async';
+import 'dart:math';
 import 'dart:typed_data';
-import 'package:udp/udp.dart';
 import '../state/app_state.dart';
 
 /// Receives raw 4-channel PCM over UDP and emits de-interleaved channel data.
@@ -15,7 +15,6 @@ class UdpAudioReceiver {
 
   final AppState appState;
 
-  UDP? _udp;
   bool _running = false;
 
   // Accumulators per channel
@@ -31,20 +30,22 @@ class UdpAudioReceiver {
 
   UdpAudioReceiver({required this.appState});
 
+  int _packetCounter = 0;
+
   Future<void> start() async {
     if (_running) return;
     _running = true;
+  }
 
-    _udp = await UDP.bind(Endpoint.any(port: Port(appState.udpPort)));
-    appState.setConnectionStatus(ConnectionStatus.connected);
-
-    // listen() is non-blocking and calls the callback for each received datagram
-    _udp!.listen(
-      (datagram) {
-        if (datagram == null || !_running) return;
-        _processPacket(datagram.data);
-      },
-    );
+  void processBlePacket(List<int> packet) {
+    if (!_running) return;
+    if (packet.length > 10) {
+      if (_packetCounter++ % 10 == 0) {
+        print(
+            "DEBUG: [BLE Receiver] Raw data arriving. Packet #$_packetCounter. Size: ${packet.length} bytes");
+      }
+    }
+    _processPacket(Uint8List.fromList(packet));
   }
 
   void _processPacket(Uint8List data) {
@@ -85,15 +86,27 @@ class UdpAudioReceiver {
   }
 
   void _emitFrame() {
+    final List<double> levels = [];
+
     // Build per-channel Float64Lists
     final channelArrays = List.generate(channels, (ch) {
       final arr = Float64List(frameSize);
       final buf = _buffers[ch];
+
+      double sumSq = 0;
       for (int i = 0; i < frameSize; i++) {
         arr[i] = buf[i];
+        sumSq += arr[i] * arr[i];
       }
+
+      // Calculate RMS level for this channel
+      double rms = sqrt(sumSq / frameSize);
+      levels.add(rms);
+
       return arr;
     });
+
+    appState.updateMicLevels(levels);
 
     // Build mono mix
     final mono = Float32List(frameSize);
@@ -117,9 +130,6 @@ class UdpAudioReceiver {
 
   Future<void> stop() async {
     _running = false;
-    _udp?.close();
-    _udp = null;
-    appState.setConnectionStatus(ConnectionStatus.disconnected);
   }
 
   void dispose() {

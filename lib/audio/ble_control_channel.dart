@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import '../state/app_state.dart';
 
@@ -11,16 +12,24 @@ class BleControlChannel {
   static const customServiceUuid = "4fafc201-1fb5-459e-8fcc-c5c9c331914b";
   static const statusCharUuid = "beb5483e-36e1-4688-b7f5-ea07361b26a8";
 
+  // Custom audio streaming service
+  static const audioServiceUuid = "e0262760-08c2-11e1-9073-0e8ac72e0000";
+  static const audioCharUuid = "e0262760-08c2-11e1-9073-0e8ac72e0001";
+
   final AppState appState;
   BluetoothDevice? _device;
   StreamSubscription? _batterySubscription;
   StreamSubscription? _statusSubscription;
+  StreamSubscription? _audioSubscription;
   StreamSubscription? _connectionSubscription;
 
   final _devicesController =
       StreamController<List<BluetoothDevice>>.broadcast();
   Stream<List<BluetoothDevice>> get foundDevices => _devicesController.stream;
   final List<BluetoothDevice> _foundDevices = [];
+
+  final _audioStreamController = StreamController<List<int>>.broadcast();
+  Stream<List<int>> get audioStream => _audioStreamController.stream;
 
   BleControlChannel({required this.appState});
 
@@ -71,6 +80,11 @@ class BleControlChannel {
         autoConnect: false,
         timeout: const Duration(seconds: 10),
       );
+
+      // Request maximum MTU size (512) for handling raw audio streaming limits over BLE
+      if (Platform.isAndroid) {
+        await device.requestMtu(512);
+      }
     } catch (e) {
       appState.setConnectionStatus(ConnectionStatus.disconnected);
       return;
@@ -131,6 +145,21 @@ class BleControlChannel {
           }
         }
       }
+
+      // Audio Data Stream Service
+      if (service.uuid.toString().toLowerCase() == audioServiceUuid) {
+        for (final char in service.characteristics) {
+          if (char.uuid.toString().toLowerCase() == audioCharUuid) {
+            await char.setNotifyValue(true);
+            _audioSubscription = char.onValueReceived.listen((value) {
+              if (value.isNotEmpty) {
+                // print("DEBUG: [BLE Stream] Broadcasted ${value.length} bytes");
+                _audioStreamController.add(value);
+              }
+            });
+          }
+        }
+      }
     }
   }
 
@@ -144,14 +173,17 @@ class BleControlChannel {
   void _cleanupSubscriptions() {
     _batterySubscription?.cancel();
     _statusSubscription?.cancel();
+    _audioSubscription?.cancel();
     _connectionSubscription?.cancel();
     _batterySubscription = null;
     _statusSubscription = null;
+    _audioSubscription = null;
     _connectionSubscription = null;
   }
 
   void dispose() {
     _cleanupSubscriptions();
     _devicesController.close();
+    _audioStreamController.close();
   }
 }

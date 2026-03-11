@@ -72,7 +72,10 @@ class _ScanScreenState extends State<ScanScreen> {
     AudioPipeline pipeline,
   ) {
     final isConnected = state.connectionStatus == ConnectionStatus.connected;
-    final color = isConnected ? AppColors.green : AppColors.cyan;
+    final isConnecting = state.connectionStatus == ConnectionStatus.connecting;
+    final color = isConnected
+        ? AppColors.green
+        : (isConnecting ? Colors.orange : AppColors.cyan);
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -99,13 +102,19 @@ class _ScanScreenState extends State<ScanScreen> {
                   color: color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(14),
                 ),
-                child: Icon(
-                  isConnected
-                      ? Icons.sensors_rounded
-                      : Icons.sensors_off_rounded,
-                  color: color,
-                  size: 24,
-                ),
+                child: isConnecting
+                    ? Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: CircularProgressIndicator(
+                            strokeWidth: 2, color: color),
+                      )
+                    : Icon(
+                        isConnected
+                            ? Icons.sensors_rounded
+                            : Icons.sensors_off_rounded,
+                        color: color,
+                        size: 24,
+                      ),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -113,13 +122,19 @@ class _ScanScreenState extends State<ScanScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      isConnected ? 'DeafAssist Array' : 'Not Connected',
+                      isConnected
+                          ? 'DeafAssist Array'
+                          : (isConnecting
+                              ? 'Waiting for Handshake...'
+                              : 'Not Connected'),
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     Text(
                       isConnected
-                          ? 'BLE + UDP ${state.udpHost}:${state.udpPort}'
-                          : 'Scan to discover your device',
+                          ? 'BLE Data Stream Active'
+                          : (isConnecting
+                              ? 'Requesting Handshake...'
+                              : 'Scan to discover your device'),
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ],
@@ -155,10 +170,16 @@ class _ScanScreenState extends State<ScanScreen> {
                   label: Text(_isScanning ? 'Scanning...' : 'Scan BLE'),
                 ),
               ),
-              if (isConnected) ...[
+              if (isConnected || isConnecting) ...[
                 const SizedBox(width: 12),
                 OutlinedButton(
-                  onPressed: () => pipeline.ble.disconnect(),
+                  onPressed: () {
+                    pipeline.ble.disconnect();
+                    pipeline.stopDemo();
+                    context
+                        .read<AppState>()
+                        .setConnectionStatus(ConnectionStatus.disconnected);
+                  },
                   child: const Text('Disconnect'),
                 ),
               ],
@@ -235,14 +256,19 @@ class _ScanScreenState extends State<ScanScreen> {
       if (mounted) setState(() => _devices = devices);
     });
 
-    await pipeline.ble.startScan();
-    if (mounted) setState(() => _isScanning = false);
+    try {
+      await pipeline.ble.startScan();
+    } catch (e) {
+      debugPrint("BLE Scan Error: $e");
+    } finally {
+      if (mounted) setState(() => _isScanning = false);
+    }
   }
 
   void _connectDevice(AudioPipeline pipeline, BluetoothDevice device) async {
     await pipeline.ble.connect(device);
-    // After BLE connect, start UDP audio stream
-    await pipeline.connectUdp();
+    // After BLE connect, start audio stream over BLE
+    await pipeline.connectAudioStream();
   }
 }
 
