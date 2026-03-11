@@ -1,0 +1,60 @@
+name: deaf_assist
+description: Real-time blind-spot audio awareness for deaf users via ESP32-S3 mic array.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # BLE control channel (scan, battery, status)
+  flutter_blue_plus: ^1.32.12
+
+  # YAMNet on-device inference
+  tflite_flutter: ^0.12.1
+
+  # Notifications
+  flutter_local_notifications: ^17.2.2
+
+  # Haptics
+  vibration: ^2.0.0
+
+  # State management
+  provider: ^6.1.2
+
+  # Permissions
+  permission_handler: ^11.3.1
+
+  # Charts
+  fl_chart: ^0.68.0
+
+  # Typography  
+  google_fonts: ^6.2.1
+
+  # Lottie animations
+  lottie: ^3.1.0
+
+  # Stream operators
+  rxdart: ^0.27.7
+
+  # UDP sockets
+  udp: ^4.0.0
+
+  # Icons
+  cupertino_icons: ^1.0.6
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/models/
+    - assets/animations/
+    - assets/icons/
