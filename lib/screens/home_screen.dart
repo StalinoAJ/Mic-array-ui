@@ -265,8 +265,8 @@ class _DashboardView extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: List.generate(4, (i) {
               double level = isConnected ? state.micLevels[i] : 0.0;
-              // Amplify for better visibility, clamp to 1.0
-              double displayLevel = (level * 5.0).clamp(0.01, 1.0);
+              // Levels are already amplified in UdpAudioReceiver
+              double displayLevel = level.clamp(0.01, 1.0);
 
               return Column(
                 children: [

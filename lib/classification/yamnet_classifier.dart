@@ -182,17 +182,18 @@ class YamNetClassifier {
     }
 
     try {
-      // tflite_flutter 0.12.x: input is a flat Float32List, output is a Map
+      // YAMNet expects input [15600] and output [1, 521]
       final inputData = Float32List.fromList(samples);
-      // YAMNet output shape: [num_frames, 521] — we take the first frame
-      final outputScores = Float32List(numClasses);
-      final outputMap = <int, Object>{0: outputScores};
+      // Use a standard nested List for the output buffer
+      final outputBuffer =
+          List.generate(1, (_) => List<double>.filled(numClasses, 0.0));
 
-      _interpreter!.runForMultipleInputs([inputData], outputMap);
+      _interpreter!.run(inputData, outputBuffer);
 
+      final List<double> scores = outputBuffer[0];
       final results = <ClassificationResult>[];
-      for (int i = 0; i < outputScores.length && i < _labels.length; i++) {
-        results.add(ClassificationResult(_labels[i], outputScores[i]));
+      for (int i = 0; i < scores.length && i < _labels.length; i++) {
+        results.add(ClassificationResult(_labels[i], scores[i]));
       }
 
       results.sort((a, b) => b.confidence.compareTo(a.confidence));

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 import '../state/app_state.dart';
 import '../services/audio_pipeline.dart';
 import '../theme/app_theme.dart';
@@ -13,9 +12,6 @@ class ScanScreen extends StatefulWidget {
 }
 
 class _ScanScreenState extends State<ScanScreen> {
-  List<BluetoothDevice> _devices = [];
-  bool _isScanning = false;
-
   @override
   Widget build(BuildContext context) {
     final pipeline = Provider.of<AudioPipeline>(context, listen: false);
@@ -46,15 +42,9 @@ class _ScanScreenState extends State<ScanScreen> {
             Row(
               children: [
                 Text(
-                  'Nearby Devices',
+                  'WiFi Instructions',
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
-                const Spacer(),
-                if (_devices.isNotEmpty)
-                  Text(
-                    '${_devices.length} found',
-                    style: Theme.of(context).textTheme.bodyMedium,
-                  ),
               ],
             ),
             const SizedBox(height: 12),
@@ -110,8 +100,8 @@ class _ScanScreenState extends State<ScanScreen> {
                       )
                     : Icon(
                         isConnected
-                            ? Icons.sensors_rounded
-                            : Icons.sensors_off_rounded,
+                            ? Icons.wifi_protected_setup_rounded
+                            : Icons.wifi_off_rounded,
                         color: color,
                         size: 24,
                       ),
@@ -123,18 +113,18 @@ class _ScanScreenState extends State<ScanScreen> {
                   children: [
                     Text(
                       isConnected
-                          ? 'DeafAssist Array'
+                          ? 'DeafAssist (WiFi)'
                           : (isConnecting
-                              ? 'Waiting for Handshake...'
+                              ? 'Connecting via WiFi...'
                               : 'Not Connected'),
                       style: Theme.of(context).textTheme.titleLarge,
                     ),
                     Text(
                       isConnected
-                          ? 'BLE Data Stream Active'
+                          ? 'Streaming from ${state.udpHost}'
                           : (isConnecting
                               ? 'Requesting Handshake...'
-                              : 'Scan to discover your device'),
+                              : 'Connect to DeafAssist_AP'),
                       style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ],
@@ -156,8 +146,10 @@ class _ScanScreenState extends State<ScanScreen> {
             children: [
               Expanded(
                 child: FilledButton.icon(
-                  onPressed: _isScanning ? null : () => _startScan(pipeline),
-                  icon: _isScanning
+                  onPressed: isConnecting || isConnected
+                      ? null
+                      : () => _connectWifi(pipeline),
+                  icon: isConnecting
                       ? const SizedBox(
                           width: 16,
                           height: 16,
@@ -166,19 +158,16 @@ class _ScanScreenState extends State<ScanScreen> {
                             color: AppColors.background,
                           ),
                         )
-                      : const Icon(Icons.bluetooth_searching_rounded, size: 16),
-                  label: Text(_isScanning ? 'Scanning...' : 'Scan BLE'),
+                      : const Icon(Icons.wifi_find_rounded, size: 16),
+                  label: Text(isConnected ? 'Connected' : 'Connect via WiFi'),
                 ),
               ),
               if (isConnected || isConnecting) ...[
                 const SizedBox(width: 12),
                 OutlinedButton(
                   onPressed: () {
-                    pipeline.ble.disconnect();
+                    pipeline.wifi.disconnect();
                     pipeline.stopDemo();
-                    context
-                        .read<AppState>()
-                        .setConnectionStatus(ConnectionStatus.disconnected);
                   },
                   child: const Text('Disconnect'),
                 ),
@@ -191,147 +180,35 @@ class _ScanScreenState extends State<ScanScreen> {
   }
 
   Widget _buildDeviceList(AudioPipeline pipeline, AppState state) {
-    if (_devices.isEmpty && !_isScanning) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.bluetooth_disabled_rounded,
-              size: 56,
-              color: AppColors.textMuted,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No devices found',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            const SizedBox(height: 6),
-            const Text(
-              'Make sure the ESP32-S3 is powered\nand in BLE advertising mode.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: AppColors.textMuted, fontSize: 12),
-            ),
-            const SizedBox(height: 20),
-            OutlinedButton.icon(
-              onPressed: () => _startScan(pipeline),
-              icon: const Icon(Icons.refresh_rounded, size: 16),
-              label: const Text('Try Again'),
-            ),
-          ],
-        ),
-      );
-    }
-
-    return ListView.builder(
-      itemCount: _devices.length,
-      itemBuilder: (context, i) {
-        final device = _devices[i];
-        final name = device.platformName.isNotEmpty
-            ? device.platformName
-            : device.remoteId.toString();
-        final isConnected =
-            state.connectionStatus == ConnectionStatus.connected;
-
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 10),
-          child: _DeviceTile(
-            name: name,
-            id: device.remoteId.toString(),
-            isConnected: isConnected,
-            onConnect: () => _connectDevice(pipeline, device),
-          ),
-        );
-      },
-    );
-  }
-
-  void _startScan(AudioPipeline pipeline) async {
-    setState(() {
-      _isScanning = true;
-      _devices = [];
-    });
-
-    pipeline.ble.foundDevices.listen((devices) {
-      if (mounted) setState(() => _devices = devices);
-    });
-
-    try {
-      await pipeline.ble.startScan();
-    } catch (e) {
-      debugPrint("BLE Scan Error: $e");
-    } finally {
-      if (mounted) setState(() => _isScanning = false);
-    }
-  }
-
-  void _connectDevice(AudioPipeline pipeline, BluetoothDevice device) async {
-    await pipeline.ble.connect(device);
-    // After BLE connect, start audio stream over BLE
-    await pipeline.connectAudioStream();
-  }
-}
-
-class _DeviceTile extends StatelessWidget {
-  final String name;
-  final String id;
-  final bool isConnected;
-  final VoidCallback onConnect;
-
-  const _DeviceTile({
-    required this.name,
-    required this.id,
-    required this.isConnected,
-    required this.onConnect,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppColors.border),
-      ),
-      child: Row(
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: AppColors.cyan.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(
-              Icons.developer_board_rounded,
-              color: AppColors.cyan,
-              size: 20,
-            ),
+          Icon(
+            Icons.info_outline_rounded,
+            size: 56,
+            color: AppColors.textMuted,
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(name, style: Theme.of(context).textTheme.titleLarge),
-                Text(id, style: Theme.of(context).textTheme.bodyMedium),
-              ],
-            ),
+          const SizedBox(height: 16),
+          Text(
+            'WiFi Mode Active',
+            style: Theme.of(context).textTheme.titleMedium,
           ),
-          FilledButton(
-            onPressed: isConnected ? null : onConnect,
-            style: FilledButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              minimumSize: Size.zero,
-            ),
+          const SizedBox(height: 16),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40),
             child: Text(
-              isConnected ? 'Connected' : 'Connect',
-              style: const TextStyle(fontSize: 12),
+              '1. Connect your phone to WiFi: "DeafAssist_AP"\n2. Password: "password123"\n3. Click the button above to start stream.',
+              textAlign: TextAlign.left,
+              style: TextStyle(color: AppColors.textMuted, fontSize: 13),
             ),
           ),
         ],
       ),
     );
+  }
+
+  void _connectWifi(AudioPipeline pipeline) async {
+    await pipeline.connectAudioStream();
   }
 }

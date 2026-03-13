@@ -1,17 +1,17 @@
 import 'dart:async';
 import 'dart:math';
+import 'alert_service.dart';
 import '../state/app_state.dart';
 import '../doa/gcc_phat.dart';
 import '../audio/udp_audio_receiver.dart';
-import '../audio/ble_control_channel.dart';
+import '../audio/wifi_control_channel.dart';
 import '../classification/yamnet_classifier.dart';
-import 'alert_service.dart';
 
 /// Central orchestrator – wires together all services and manages demo mode.
 class AudioPipeline {
   final AppState appState;
   late UdpAudioReceiver _udpReceiver;
-  late BleControlChannel _ble;
+  late WifiControlChannel _wifi;
   late YamNetClassifier _classifier;
   late AlertService _alertService;
   late GccPhat _doa;
@@ -19,7 +19,6 @@ class AudioPipeline {
   StreamSubscription? _monoSub;
   StreamSubscription? _channelSub;
   StreamSubscription? _classificationSub;
-  StreamSubscription? _bleAudioSub;
   Timer? _demoTimer;
 
   AudioPipeline({required this.appState});
@@ -30,7 +29,7 @@ class AudioPipeline {
 
     _doa = GccPhat(micSpacingM: appState.micSpacingCm / 100.0);
     _udpReceiver = UdpAudioReceiver(appState: appState);
-    _ble = BleControlChannel(appState: appState);
+    _wifi = WifiControlChannel(appState: appState);
     _alertService = AlertService();
     await _alertService.init();
 
@@ -47,6 +46,11 @@ class AudioPipeline {
         );
         appState.addSoundEvent(event);
         _alertService.onSoundEvent(event, appState.notificationsEnabled);
+
+        if (event.direction != null) {
+          final dirStr = event.direction!.cardinalLabel.toLowerCase();
+          _wifi.sendMessage(dirStr);
+        }
       }
     });
   }
@@ -54,7 +58,10 @@ class AudioPipeline {
   Future<void> connectAudioStream() async {
     _monoSub?.cancel();
     _channelSub?.cancel();
-    _bleAudioSub?.cancel();
+
+    // Connect WiFi control first
+    bool connected = await _wifi.connect();
+    if (!connected) return;
 
     _monoSub = _udpReceiver.monoStream.listen(_classifier.processFrame);
     _channelSub = _udpReceiver.channelStream.listen((channels) {
@@ -70,14 +77,12 @@ class AudioPipeline {
       }
     });
 
-    _bleAudioSub = _ble.audioStream.listen((packet) {
-      _udpReceiver.processBlePacket(packet);
-    });
-
     await _udpReceiver.start();
   }
 
-  BleControlChannel get ble => _ble;
+  // Keep 'ble' name for compatibility with UI parts that use pipeline.ble
+  WifiControlChannel get ble => _wifi;
+  WifiControlChannel get wifi => _wifi;
 
   void startDemo() {
     appState.demoMode = true;
@@ -123,6 +128,11 @@ class AudioPipeline {
       );
       appState.addSoundEvent(event);
       _alertService.onSoundEvent(event, appState.notificationsEnabled);
+
+      if (event.direction != null) {
+        final dirStr = event.direction!.cardinalLabel.toLowerCase();
+        _wifi.sendMessage(dirStr);
+      }
     });
   }
 
@@ -139,9 +149,8 @@ class AudioPipeline {
     _monoSub?.cancel();
     _channelSub?.cancel();
     _classificationSub?.cancel();
-    _bleAudioSub?.cancel();
     _udpReceiver.dispose();
-    _ble.dispose();
+    _wifi.dispose();
     _classifier.dispose();
   }
 }

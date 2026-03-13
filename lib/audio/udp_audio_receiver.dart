@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:math';
+import 'dart:io';
 import 'dart:typed_data';
 import '../state/app_state.dart';
 
@@ -30,21 +30,32 @@ class UdpAudioReceiver {
 
   UdpAudioReceiver({required this.appState});
 
-  int _packetCounter = 0;
+  RawDatagramSocket? _socket;
 
   Future<void> start() async {
     if (_running) return;
     _running = true;
+
+    try {
+      _socket = await RawDatagramSocket.bind(
+          InternetAddress.anyIPv4, appState.udpPort);
+      _socket!.listen((event) {
+        if (event == RawSocketEvent.read) {
+          final datagram = _socket!.receive();
+          if (datagram != null) {
+            _processPacket(datagram.data);
+          }
+        }
+      });
+      print("DEBUG: [UDP Receiver] Listening on port ${appState.udpPort}");
+    } catch (e) {
+      print("ERROR: [UDP Receiver] Failed to bind: $e");
+      _running = false;
+    }
   }
 
   void processBlePacket(List<int> packet) {
-    if (!_running) return;
-    if (packet.length > 10) {
-      if (_packetCounter++ % 10 == 0) {
-        print(
-            "DEBUG: [BLE Receiver] Raw data arriving. Packet #$_packetCounter. Size: ${packet.length} bytes");
-      }
-    }
+    // Keep for backward compatibility or remove
     _processPacket(Uint8List.fromList(packet));
   }
 
@@ -93,16 +104,24 @@ class UdpAudioReceiver {
       final arr = Float64List(frameSize);
       final buf = _buffers[ch];
 
-      double sumSq = 0;
+      double minVal = 4095.0, maxVal = 0.0, sum = 0;
       for (int i = 0; i < frameSize; i++) {
-        arr[i] = buf[i];
-        sumSq += arr[i] * arr[i];
+        double val = buf[i] * 32768.0; // Raw units (0-4095)
+        if (val < minVal) minVal = val;
+        if (val > maxVal) maxVal = val;
+        sum += buf[i];
       }
 
-      // Calculate RMS level for this channel
-      double rms = sqrt(sumSq / frameSize);
-      levels.add(rms);
+      // Calculate Peak-to-Peak Loudness for UI
+      // 400 unit swing will be half-bar (0.5), 800+ will be full-bar (1.0)
+      double p2p = maxVal - minVal;
+      levels.add((p2p / 800.0).clamp(0.005, 1.0));
 
+      double avg = sum / frameSize; // DC estimate
+      for (int i = 0; i < frameSize; i++) {
+        // Boost gain specifically for AI/DOA math
+        arr[i] = (buf[i] - avg) * 50.0;
+      }
       return arr;
     });
 

@@ -134,8 +134,7 @@ class AppState extends ChangeNotifier {
 
   void updateMicLevels(List<double> levels) {
     _micLevels = levels;
-    // We don't notifyListeners here because trackPacket() already does it at a controlled rate
-    // to prevent UI thrashing.
+    notifyListeners();
   }
 
   void addSoundEvent(SoundEvent event) {
